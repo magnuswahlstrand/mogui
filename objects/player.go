@@ -1,4 +1,4 @@
-package player
+package objects
 
 import (
 	"image"
@@ -19,29 +19,31 @@ type Player struct {
 	component.RigidBodyComponent
 	component.ColliderComponent
 	component.ParentedComponent
+	component.ClimberComponent
 }
 
 var walking = image.Rect(0, 0, 32, 32).Add(image.Pt(98, 5))
 
-func New() *Player {
+func NewPlayer(position gfx.Vec) *Player {
 	player := Player{
 		ecs.NewBasic(),
 		component.TransformComponent{
-			Position: gfx.V(100, 100),
+			Position: position,
 		},
 		component.PlayerControlComponent{
-			Mapper: map[string]string{
-				"jump_1":      "jump",
-				"left":        "left",
-				"right":       "right",
-				"jump_1_held": "jump_held",
-			},
-			KeyStates: map[string]component.KeyState{
-				"left":      component.KeyStatePressed,
-				"right":     component.KeyStatePressed,
-				"jump":      component.KeyStateJustPressed,
-				"jump_held": component.KeyStatePressed,
-			},
+			// Mapper: map[string]string{
+			// "jump_1":      "jump",
+			// "left":        "left",
+			// "right":       "right",
+			// "jump_1_held": "jump_held",
+			// },
+			// KeyStates: map[string]component.KeyState{
+			// "left":      component.KeyStatePressed,
+			// "right":     component.KeyStatePressed,
+			// "jump":      component.KeyStateJustPressed,
+			// "jump_held": component.KeyStatePressed,
+			// },
+			KeyStates: map[string]component.KeyState{},
 		},
 		component.SpriteRendererComponent{
 			Sprite:     charImage,
@@ -55,12 +57,13 @@ func New() *Player {
 			CollidesWith:   collisiongroups.Enemy | collisiongroups.Platform,
 		},
 		component.ParentedComponent{},
+		component.ClimberComponent{},
 	}
 	return &player
 }
 
 func init() {
-	charTmp := gfx.MustOpenImage("player/char.png")
+	charTmp := gfx.MustOpenImage("assets/sprites/char.png")
 	charImage, _ = ebiten.NewImageFromImage(charTmp, ebiten.FilterDefault)
 }
 

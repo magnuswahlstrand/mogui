@@ -1,17 +1,20 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"math/rand"
+
+	"github.com/kyeett/compo/requirements"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/kyeett/compo/collisiongroups"
+	"github.com/kyeett/compo/direction"
 
 	"github.com/peterhellberg/gfx"
 
 	"github.com/kyeett/mogui/audio"
 	"github.com/kyeett/mogui/mosystem"
-	"github.com/kyeett/mogui/player"
+	"github.com/kyeett/mogui/objects"
 
 	"engo.io/ecs"
 	"engo.io/engo"
@@ -36,10 +39,6 @@ var configuration = Configuration{
 }
 
 func update(screen *ebiten.Image) error {
-	if inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
-		engo.Mailbox.Dispatch(SoundMessage{rand.Intn(7)})
-	}
-
 	ww.world.Update(configuration.dt)
 	for _, r := range ww.RenderSystems {
 		r.Render(screen)
@@ -48,32 +47,31 @@ func update(screen *ebiten.Image) error {
 	return nil
 }
 
-type SoundMessage struct {
-	i int
-}
-
-func (SoundMessage) Type() string {
-	return "SoundMessage"
-}
-
 var ww WorldWrap
 
 func main() {
 	engo.Mailbox = &engo.MessageManager{}
-	engo.Mailbox.Listen("SoundMessage", func(message engo.Message) {
-		fmt.Println("jump!")
-		soundMessage, isSound := message.(SoundMessage)
-		if !isSound {
-			return
-		}
-		switch soundMessage.i {
-		case 0, 1, 2:
-			audio.Play("female_3/jump1.mp3")
-		case 3, 4, 5:
-			audio.Play("female_3/jump2.mp3")
-		case 6:
-			audio.Play("female_3/jump3.mp3")
-		}
+	engo.Mailbox.Listen("ActionMessage", func(message engo.Message) {
+		// actionMessage, valid := message.(messages.ActionMessage)
+		// if !valid {
+		// 	return
+		// }
+
+		// if actionMessage.Action == "jump" {
+
+		// 	switch rand.Intn(7) {
+		// 	case 0, 1, 2:
+		// 		audio.Play("female_3/jump1.mp3")
+		// 	case 3, 4, 5:
+		// 		audio.Play("female_3/jump2.mp3")
+		// 	case 6:
+		// 		audio.Play("female_3/jump3.mp3")
+		// 	}
+		// }
+
+		// if actionMessage.Action == "land" {
+		// 	audio.Play("player/land.mp3")
+		// }
 
 	})
 
@@ -82,47 +80,38 @@ func main() {
 	r := rendersystem.SpriteRenderSystem{}
 	r2 := rendersystem.DebugRenderSystem{}
 
-	var requiredInterfaces = struct {
-		inputSystem        *system.Inputable
-		movementSystem     *system.Movementable
-		parentingSystem    *system.Parentable
-		controlSystem      *mosystem.Controllable
-		spriteRenderSystem *rendersystem.Spriteable
-		debugRenderSystem  *rendersystem.Debuggable
-	}{}
-
 	f := func() map[string]component.KeyState {
 		cmds := map[string]component.KeyState{}
 
 		if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
-			cmds["jump_1"] = component.KeyStateJustPressed
-			cmds["jump_2"] = component.KeyStateJustPressed
-		}
-		if ebiten.IsKeyPressed(ebiten.KeyUp) {
-			cmds["jump_1_held"] = component.KeyStatePressed
+			cmds["jump"] = component.KeyState{JustPressed: true}
 		}
 
 		if ebiten.IsKeyPressed(ebiten.KeyLeft) {
-			fmt.Println("KEY JUST PRESSED1")
-			cmds["left"] = component.KeyStatePressed
+			cmds["left"] = component.KeyState{Pressed: true}
 		}
 
 		if ebiten.IsKeyPressed(ebiten.KeyRight) {
-			fmt.Println("KEY JUST PRESSED1")
-			cmds["right"] = component.KeyStatePressed
+			cmds["right"] = component.KeyState{Pressed: true}
 		}
 
 		return cmds
 	}
 
-	w.AddSystemInterface(&system.AutoInputSystem{&system.InputSystem{}, f}, requiredInterfaces.inputSystem, nil)
-	w.AddSystemInterface(&system.MovementSystem{}, requiredInterfaces.movementSystem, nil)
-	w.AddSystemInterface(&mosystem.ControlSystem{}, requiredInterfaces.controlSystem, nil)
-	w.AddSystemInterface(&system.ParentingSystem{}, requiredInterfaces.parentingSystem, nil)
-	w.AddSystemInterface(&r, requiredInterfaces.spriteRenderSystem, nil)
-	w.AddSystemInterface(&r2, requiredInterfaces.debugRenderSystem, nil)
-	p := player.New()
-	w.AddEntity(p)
+	w.AddSystemInterface(&system.AutoInputSystem{&system.InputSystem{}, f}, requirements.InputSystem, nil)
+	w.AddSystemInterface(&system.GravitySystem{}, requirements.GravitySystem, nil)
+	w.AddSystemInterface(&system.FrictionSystem{}, requirements.FricitionSystem, nil)
+	w.AddSystemInterface(system.NewLadder(logrus.New()), requirements.LadderSystem, nil)
+	w.AddSystemInterface(&system.ParentingSystem{}, requirements.ParentingSystem, nil)
+	w.AddSystemInterface(system.NewMovement(nil), requirements.MovementSystem, nil)
+	var controlRequirements *mosystem.Controllable
+	w.AddSystemInterface(&mosystem.ControlSystem{}, controlRequirements, nil)
+	w.AddSystemInterface(&r, requirements.SpriteRenderSystem, nil)
+	w.AddSystemInterface(&r2, requirements.DebugRenderSystem, nil)
+	w.AddEntity(objects.NewLadder(gfx.V(150, 100), 16*4))
+	w.AddEntity(objects.NewLadder(gfx.V(220, 0), 16*6))
+	// w.AddEntity(player.New(gfx.V(140, 50)))
+	w.AddEntity(objects.NewPlayer(gfx.V(140, 120)))
 	w.AddEntity(&Box{
 		ecs.NewBasic(),
 		component.TransformComponent{Position: gfx.V(50, 150)},
@@ -135,13 +124,35 @@ func main() {
 	})
 	w.AddEntity(&Box{
 		ecs.NewBasic(),
-		component.TransformComponent{Position: gfx.V(170, 50)},
+		component.TransformComponent{Position: gfx.V(166, 100)},
 		component.ColliderComponent{
 			Bounds:         gfx.R(0, 0, 30, 120),
 			CollisionGroup: collisiongroups.Platform,
 			CollidesWith:   collisiongroups.Enemy | collisiongroups.Player,
 		},
 		component.RigidBodyComponent{Velocity: gfx.V(0, 0)},
+	})
+	w.AddEntity(&Box{
+		ecs.NewBasic(),
+		component.TransformComponent{Position: gfx.V(50, 80)},
+		component.ColliderComponent{
+			Bounds:             gfx.R(0, 0, 100, 10),
+			CollisionGroup:     collisiongroups.Platform,
+			CollidesWith:       collisiongroups.Enemy | collisiongroups.Player,
+			DisabledDirections: direction.Up | direction.Left | direction.Right,
+		},
+		component.RigidBodyComponent{},
+	})
+	w.AddEntity(&Box{
+		ecs.NewBasic(),
+		component.TransformComponent{Position: gfx.V(50, 30)},
+		component.ColliderComponent{
+			Bounds:             gfx.R(0, 0, 100, 10),
+			CollisionGroup:     collisiongroups.Platform,
+			CollidesWith:       collisiongroups.Enemy | collisiongroups.Player,
+			DisabledDirections: direction.Up | direction.Left | direction.Right,
+		},
+		component.RigidBodyComponent{},
 	})
 
 	ww = WorldWrap{world: &w, RenderSystems: []rendersystem.RenderSystem{&r, &r2}}

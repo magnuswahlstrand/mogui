@@ -44,7 +44,6 @@ func LoadResources() {
 			continue
 		}
 
-		fmt.Println(path)
 		// s, err := vorbis.Decode(globalAudioContext, audio.BytesReadSeekCloser(assets.MustAsset(path)))
 		s, err := mp3.Decode(globalAudioContext, audio.BytesReadSeekCloser(assets.MustAsset(path)))
 		// s, err := wav.Decode(globalAudioContext, audio.BytesReadSeekCloser(assets.MustAsset(path)))

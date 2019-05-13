@@ -1,10 +1,12 @@
 package mosystem
 
 import (
-	"fmt"
+	"engo.io/engo"
 
 	"engo.io/ecs"
 	"github.com/kyeett/compo/component"
+	"github.com/kyeett/compo/messages"
+	"github.com/kyeett/ecs/constants"
 )
 
 type controlEntity struct {
@@ -25,7 +27,6 @@ type Controllable interface {
 
 func (c *ControlSystem) Add(basic *ecs.BasicEntity, pc *component.PlayerControlComponent, rb *component.RigidBodyComponent) {
 	e := controlEntity{basic, pc, rb}
-	fmt.Println("adding", e)
 	c.entities = append(c.entities, e)
 }
 
@@ -50,22 +51,19 @@ func (c *ControlSystem) Remove(basic ecs.BasicEntity) {
 func (c *ControlSystem) Update(dt float32) {
 	for _, e := range c.entities {
 
-		if e.KeyStates["jump"] == component.KeyStateJustPressed || e.KeyStates["jump"] == component.KeyStatePressed {
-			fmt.Println(e.UseGravity)
-			e.Velocity.Y = -3
-			e.UseGravity = true
+		jump := (e.KeyStates["jump"].JustPressed || e.KeyStates["jump"].Pressed)
+		if jump && e.Velocity.Y == 0 {
+			e.Velocity.Y = -5
+			engo.Mailbox.Dispatch(messages.ActionMessage{Source: e.ID(), Action: "jump"})
 		}
 
-		if e.KeyStates["left"] == component.KeyStatePressed {
-			e.Velocity.X = -1
+		if e.KeyStates["left"].Pressed {
+			e.Velocity.X -= constants.AccelerationX * float64(dt)
 		}
 
-		if e.KeyStates["right"] == component.KeyStatePressed {
-			e.Velocity.X = 1
+		if e.KeyStates["right"].Pressed {
+			e.Velocity.X += constants.AccelerationX * float64(dt)
 		}
 
-		if e.UseGravity && e.ParentID == nil {
-			e.Velocity.Y += 0.03 * float64(dt)
-		}
 	}
 }
